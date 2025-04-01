@@ -8,10 +8,7 @@ import com.google.cloud.firestore.WriteResult;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.UserRecord;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -31,6 +28,9 @@ public class PrimaryController {
 
     @FXML
     private TextArea outputTextArea;
+
+    @FXML
+    private TextField phoneNum;
 
     @FXML
     private Button readButton;
@@ -91,17 +91,26 @@ public class PrimaryController {
         try
         {
             documents = future.get().getDocuments();
-            if(documents.size()>0)
-            {
-                System.out.println("Getting (reading) data from firabase database....");
+            if(documents.size()>0) {
+                System.out.println("Getting (reading) data from firebase database....");
                 listOfUsers.clear();
-                for (QueryDocumentSnapshot document : documents)
-                {
-                    outputTextArea.setText(outputTextArea.getText()+ document.getData().get("Name")+ " , Age: "+
-                            document.getData().get("Age")+ " \n ");
-                    System.out.println(document.getId() + " => " + document.getData().get("Name"));
-                    person  = new Person(String.valueOf(document.getData().get("Name")),
-                            Integer.parseInt(document.getData().get("Age").toString()));
+                for (QueryDocumentSnapshot document : documents) {
+                    String name = document.getString("Name");
+                    Long ageLong = document.getLong("Age");
+                    Object phoneObj = document.get("Phone Number");
+
+                    if (name == null || ageLong == null || phoneObj == null) {
+                        System.out.println("Skipping document " + document.getId() + " due to missing fields.");
+                        continue;
+                    }
+
+                    int age = ageLong.intValue();
+                    String phoneNumber = phoneObj.toString(); // Convert any type to String
+
+                    outputTextArea.appendText(name + " , Age: " + age + " , Phone: " + phoneNumber + "\n");
+                    System.out.println(document.getId() + " => " + name);
+
+                    person = new Person(name, age, phoneNumber);
                     listOfUsers.add(person);
                 }
             }
@@ -144,14 +153,20 @@ public class PrimaryController {
     }
 
     public void addData() {
+        try {
+            int age = Integer.parseInt(ageTextField.getText().trim()); // Validate input
 
-        DocumentReference docRef = DemoApp.fstore.collection("Persons").document(UUID.randomUUID().toString());
+            DocumentReference docRef = DemoApp.fstore.collection("Persons").document(UUID.randomUUID().toString());
+            Map<String, Object> data = new HashMap<>();
+            data.put("Name", nameTextField.getText().trim());
+            data.put("Age", age);
+            data.put("Phone Number", phoneNum.getText().trim());
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("Name", nameTextField.getText());
-        data.put("Age", Integer.parseInt(ageTextField.getText()));
-
-        //asynchronously write data
-        ApiFuture<WriteResult> result = docRef.set(data);
+            // asynchronously write data
+            ApiFuture<WriteResult> result = docRef.set(data);
+            System.out.println("Data successfully added!");
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid age input. Please enter a valid number.");
+        }
     }
 }
